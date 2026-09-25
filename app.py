@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 
-st.set_page_config(page_title="Gestão de Empréstimos", page_icon="📊", layout="wide")
+st.set_page_config(page_title="Sistema de Gestão de Empréstimos", page_icon="📊", layout="wide")
 
 if 'clientes' not in st.session_state:
     st.session_state.clientes = []
@@ -35,8 +35,8 @@ if menu == "Dashboard":
     if not st.session_state.contratos:
         st.info("Nenhum contrato cadastrado ainda. Vá em 'Novo Contrato' para começar.")
     else:
-        total_emprestado = sum(c['Valor'] for c in st.session_state.contratos)
-        total_pago = sum(p['Valor'] for p in st.session_state.pagamentos)
+        total_emprestado = sum(c['Valor_Original'] for c in st.session_state.contratos)
+        total_pago = sum(p['Valor_Pago'] for p in st.session_state.pagamentos)
         
         col1, col2, col3 = st.columns(3)
         col1.metric("Total Emprestado", f"R$ {total_emprestado:,.2f}")
@@ -48,11 +48,11 @@ if menu == "Dashboard":
         st.dataframe(df_c, use_container_width=True)
 
 # ----------------------------------------------------
-# 2. NOVO CLIENTE (Com a opção de exclusão ao lado)
+# 2. NOVO CLIENTE (Com a exclusão habilitada ao lado)
 # ----------------------------------------------------
 elif menu == "Novo Cliente":
     st.title("👤 Cadastro e Gestão de Clientes")
-    st.markdown("Painel limpo para controle de carteira, contratos, amortizações e auditoria.")
+    st.markdown("Painel para cadastrar e gerenciar clientes.")
     
     col_esq, col_dir = st.columns(2)
     
@@ -99,10 +99,10 @@ elif menu == "Novo Cliente":
         st.info("Nenhum cliente na base.")
 
 # ----------------------------------------------------
-# 3. NOVO CONTRATO (ESTRUTURA ORIGINAL EXATA)
+# 3. NOVO CONTRATO (Sua versão exata original)
 # ----------------------------------------------------
 elif menu == "Novo Contrato":
-    st.title("📄 Cadastro de Contrato de Empréstimo")
+    st.title("📄 Novo Contrato de Empréstimo")
     
     if not st.session_state.clientes:
         st.warning("Cadastre pelo menos um cliente antes de criar um contrato.")
@@ -110,77 +110,115 @@ elif menu == "Novo Contrato":
         clientes_lista = [c['Nome'] for c in st.session_state.clientes]
         with st.form("form_contrato"):
             cli = st.selectbox("Cliente", clientes_lista)
-            valor_emp = st.number_input("Valor do Empréstimo (R$)", min_value=0.0, format="%.2f")
-            taxa_juros = st.number_input("Taxa de Juros (%)", min_value=0.0, format="%.2f")
-            data_emp = st.date_input("Data do Contrato", value=datetime.today())
+            valor_emp = st.number_input("Valor do Empréstimo Principal (R$)", min_value=0.0, format="%.2f")
+            num_parcelas = st.slider("Número de Parcelas", min_value=1, max_value=24, value=10)
+            taxa_normal = st.number_input("Taxa Normal (% ao mês)", min_value=0.0, value=15.0, format="%.2f")
+            taxa_atraso = st.number_input("Taxa de Atraso (% ao mês)", min_value=0.0, value=2.0, format="%.2f")
+            data_venc = st.text_input("Data de Vencimento da 1ª Parcela (Formato: DD/MM/AAAA)", value="25/10/2026")
             
             submit_c = st.form_submit_button("Criar Contrato")
             if submit_c:
                 if valor_emp > 0:
                     novo_id_c = len(st.session_state.contratos) + 1
+                    # Cálculo proporcional inicial idêntico ao seu
+                    saldo_inicial = valor_emp * (1 + (taxa_normal / 100))
                     st.session_state.contratos.append({
                         "ID": novo_id_c,
                         "Cliente": cli,
-                        "Valor": valor_emp,
-                        "Taxa (%)": taxa_juros,
-                        "Data": str(data_emp)
+                        "Valor_Original": valor_emp,
+                        "Parcela_Atual": 0,
+                        "Total_Parcelas": num_parcelas,
+                        "Taxa_Normal": taxa_normal,
+                        "Taxa_Atraso": taxa_atraso,
+                        "Data_Vencimento": data_venc,
+                        "Saldo_Atual": saldo_inicial,
+                        "Status": "Em dia",
+                        "Dias_Atraso": 0,
+                        "Parcelas": f"0 de {num_parcelas}"
                     })
-                    st.success(f"Contrato #{novo_id_c} criado para {cli} com taxa de {taxa_juros}%!")
+                    st.success(f"Contrato criado com sucesso! Status inicial: 0 de {num_parcelas} | Saldo Inicial: R$ {saldo_inicial:,.2f}")
                 else:
                     st.error("O valor do empréstimo deve ser maior que zero.")
                     
-        st.subheader("Contratos Ativos")
+        st.subheader("Contratos na Base")
         if st.session_state.contratos:
             st.dataframe(pd.DataFrame(st.session_state.contratos), use_container_width=True)
 
 # ----------------------------------------------------
-# 4. REGISTRAR PAGAMENTO
+# 4. REGISTRAR PAGAMENTO (Sua versão exata original)
 # ----------------------------------------------------
 elif menu == "Registrar Pagamento":
-    st.title("💰 Registro de Pagamento / Amortização")
+    st.title("💰 Registrar Pagamento / Amortização")
     
     if not st.session_state.contratos:
         st.info("Nenhum contrato ativo para registrar pagamentos.")
     else:
-        contratos_ids = [c['ID'] for c in st.session_state.contratos]
+        contratos_opcoes = {f"Contrato #{c['ID']} - {c['Cliente']} (Pagas: {c['Parcela_Atual']} de {c['Total_Parcelas']} | Saldo Devedor: R$ {c['Saldo_Atual']:,.2f})": c for c in st.session_state.contratos}
+        
         with st.form("form_pagamento"):
-            id_contrato = st.selectbox("ID do Contrato", contratos_ids)
-            valor_pag = st.number_input("Valor Pago (R$)", min_value=0.0, format="%.2f")
-            data_pag = st.date_input("Data do Pagamento", value=datetime.today())
+            sel_str = st.selectbox("Selecione o Contrato", list(contratos_opcoes.keys()))
+            contrato_obj = contratos_opcoes[sel_str]
             
-            submit_p = st.form_submit_button("Registrar Pagamento")
+            valor_pag = st.number_input("Valor Pago pelo Cliente (R$)", min_value=0.0, format="%.2f")
+            data_pag = st.text_input("Data do Pagamento (Formato: DD/MM/AAAA)", value="25/09/2026")
+            
+            submit_p = st.form_submit_button("Confirmar Amortização e Avançar Parcela")
             if submit_p:
                 if valor_pag > 0:
+                    novo_id_p = len(st.session_state.pagamentos) + 1
+                    novo_saldo = max(0.0, contrato_obj['Saldo_Atual'] - valor_pag)
+                    
+                    # Atualiza o contrato na sessão
+                    for c in st.session_state.contratos:
+                        if c['ID'] == contrato_obj['ID']:
+                            c['Parcela_Atual'] = min(c['Total_Parcelas'], c['Parcela_Atual'] + 1)
+                            c['Saldo_Atual'] = novo_saldo
+                            c['Parcelas'] = f"{c['Parcela_Atual']} de {c['Total_Parcelas']}"
+                    
                     st.session_state.pagamentos.append({
-                        "ID Contrato": id_contrato,
-                        "Valor": valor_pag,
-                        "Data": str(data_pag)
+                        "ID": novo_id_p,
+                        "Contrato_ID": contrato_obj['ID'],
+                        "Cliente": contrato_obj['Cliente'],
+                        "Valor_Pago": valor_pag,
+                        "Data_Pagamento": data_pag,
+                        "Novo_Saldo": novo_saldo
                     })
-                    st.success(f"Pagamento de R$ {valor_pag:,.2f} registrado no Contrato #{id_contrato}!")
+                    st.success(f"Pagamento registrado com sucesso! Novo saldo: R$ {novo_saldo:,.2f}")
+                    st.rerun()
                 else:
                     st.error("O valor do pagamento deve ser maior que zero.")
                     
-        st.subheader("Histórico de Pagamentos")
+        st.subheader("Histórico de Pagamentos e Correção de Lançamentos")
         if st.session_state.pagamentos:
-            st.dataframe(pd.DataFrame(st.session_state.pagamentos), use_container_width=True)
+            df_p = pd.DataFrame(st.session_state.pagamentos)
+            st.dataframe(df_p, use_container_width=True)
+            
+            st.markdown("### 🗑️ Excluir / Reverter Pagamento Incorreto")
+            pag_ids = [p['ID'] for p in st.session_state.pagamentos]
+            del_pag_id = st.selectbox("Selecione o ID do Pagamento para Excluir", pag_ids)
+            if st.button("Excluir Pagamento Selecionado", type="primary"):
+                st.session_state.pagamentos = [p for p in st.session_state.pagamentos if p['ID'] != del_pag_id]
+                st.success("Pagamento excluído com sucesso!")
+                st.rerun()
 
 # ----------------------------------------------------
-# 5. AUDITORIA & RELATÓRIOS
+# 5. AUDITORIA & RELATÓRIOS (Sua versão exata original)
 # ----------------------------------------------------
 elif menu == "Auditoria & Relatórios":
-    st.title("🔍 Painel de Auditoria e Relatórios")
+    st.title("📋 Relatório de Auditoria para Conferência")
+    st.markdown("Consolidado completo de todas as movimentações e contratos para prestação de contas e auditoria.")
     
-    st.subheader("Exportar Dados em CSV")
+    st.subheader("1. Auditoria de Contratos")
     if st.session_state.contratos:
-        df_contratos = pd.DataFrame(st.session_state.contratos)
-        st.download_button("Baixar Contratos (CSV)", df_contratos.to_csv(index=False).encode('utf-8'), "contratos.csv", "text/csv")
-    
-    if st.session_state.pagamentos:
-        df_pagamentos = pd.DataFrame(st.session_state.pagamentos)
-        st.download_button("Baixar Pagamentos (CSV)", df_pagamentos.to_csv(index=False).encode('utf-8'), "pagamentos.csv", "text/csv")
+        st.dataframe(pd.DataFrame(st.session_state.contratos), use_container_width=True)
+    else:
+        st.info("Nenhum contrato cadastrado.")
         
-    st.markdown("---")
-    st.subheader("Auditoria Geral do Sistema")
-    st.write(f"Total de Clientes cadastrados: {len(st.session_state.clientes)}")
-    st.write(f"Total de Contratos criados: {len(st.session_state.contratos)}")
-    st.write(f"Total de Pagamentos registrados: {len(st.session_state.pagamentos)}")
+    st.subheader("2. Auditoria de Pagamentos Realizados")
+    if st.session_state.pagamentos:
+        df_aud_pag = pd.DataFrame(st.session_state.pagamentos)
+        st.dataframe(df_aud_pag, use_container_width=True)
+        csv_data = df_aud_pag.to_csv(index=False).encode('utf-8')
+        st.download_button("Baixar Relatório de Contratos (CSV para Auditoria)", csv_data, "relatorio_auditoria.csv", "text/csv")
+    else:
+        st.info("Nenhum pagamento registrado.")
