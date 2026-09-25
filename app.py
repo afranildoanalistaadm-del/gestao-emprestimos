@@ -1,11 +1,9 @@
-
-  import streamlit as st
+import streamlit as st
 import pandas as pd
 from datetime import datetime
 
 st.set_page_config(page_title="Gestão de Empréstimos", page_icon="📊", layout="wide")
 
-# Inicialização do session_state
 if 'clientes' not in st.session_state:
     st.session_state.clientes = []
 if 'contratos' not in st.session_state:
@@ -37,8 +35,8 @@ if menu == "Dashboard":
     if not st.session_state.contratos:
         st.info("Nenhum contrato cadastrado ainda. Vá em 'Novo Contrato' para começar.")
     else:
-        total_emprestado = sum(c['valor'] for c in st.session_state.contratos)
-        total_pago = sum(p['valor'] for p in st.session_state.pagamentos)
+        total_emprestado = sum(c['Valor'] for c in st.session_state.contratos)
+        total_pago = sum(p['Valor'] for p in st.session_state.pagamentos)
         
         col1, col2, col3 = st.columns(3)
         col1.metric("Total Emprestado", f"R$ {total_emprestado:,.2f}")
@@ -104,15 +102,13 @@ elif menu == "Novo Cliente":
             cli_sel_del = st.selectbox("Selecione o cliente para excluir", list(cli_nomes_del.keys()), key="del_cli")
             obj_del = cli_nomes_del[cli_sel_del]
             
-            # Verificar contratos vinculados
             contratos_vinculados = [c for c in st.session_state.contratos if c['Cliente'] == obj_del['Nome']]
             
             if contratos_vinculados:
-                st.warning(.format(obj_del['Nome'], len(contratos_vinculados)))
-                for_car = st.checkbox("Forçar exclusão (Isso também removerá os contratos e pagamentos vinculados a este cliente)")
+                st.warning(f"Não é possível excluir o cliente '{obj_del['Nome']}' pois existem {len(contratos_vinculados)} contratos vinculados a ele.")
+                for_car = st.checkbox("Forçar exclusão (Isso também removerá os contratos vinculados)")
                 if st.button("Excluir Cliente e Contratos Vinculados", type="primary"):
                     if for_car:
-                        # Remover contratos e pagamentos do cliente
                         st.session_state.contratos = [c for c in st.session_state.contratos if c['Cliente'] != obj_del['Nome']]
                         st.session_state.clientes = [c for c in st.session_state.clientes if c['ID'] != obj_del['ID']]
                         st.success("Cliente e vínculos removidos com sucesso!")
