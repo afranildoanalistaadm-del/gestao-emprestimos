@@ -48,7 +48,7 @@ if menu == "Dashboard":
         st.dataframe(df_c, use_container_width=True)
 
 # ----------------------------------------------------
-# 2. NOVO CLIENTE (Com exclusão habilitada ao lado)
+# 2. NOVO CLIENTE (Com gestão e exclusão flexível)
 # ----------------------------------------------------
 elif menu == "Novo Cliente":
     st.title("👤 Cadastro e Gestão de Clientes")
@@ -83,13 +83,16 @@ elif menu == "Novo Cliente":
             
             contratos_vinculados = [c for c in st.session_state.contratos if c['Cliente'] == obj_del['Nome']]
             
-            if st.button("Excluir Cliente Selecionado", type="primary"):
-                if contratos_vinculados:
-                    st.error("Não é possível excluir este cliente pois existem contratos vinculados a ele.")
-                else:
-                    st.session_state.clientes = [c for c in st.session_state.clientes if c['ID'] != obj_del['ID']]
-                    st.success("Cliente excluído com sucesso!")
-                    st.rerun()
+            if contratos_vinculados:
+                st.warning(f"Atenção: Este cliente possui {len(contratos_vinculados)} contrato(s) ativo(s).")
+            
+            if st.button("Excluir Cliente (e contratos vinculados se houver)", type="primary"):
+                # Remove o cliente
+                st.session_state.clientes = [c for c in st.session_state.clientes if c['ID'] != obj_del['ID']]
+                # Remove também os contratos vinculados para evitar inconsistência de ID/Nome
+                st.session_state.contratos = [c for c in st.session_state.contratos if c['Cliente'] != obj_del['Nome']]
+                st.success("Cliente e registros vinculados excluídos com sucesso!")
+                st.rerun()
 
     st.markdown("---")
     st.subheader("Clientes Cadastrados na Base")
@@ -120,7 +123,7 @@ elif menu == "Novo Contrato":
             if submit_c:
                 if valor_emp > 0:
                     novo_id_c = len(st.session_state.contratos) + 1
-                    # Aplicação correta da taxa normal sobre o principal inicial (Ex: 500 + 15% = 575)
+                    # Aplicação da taxa normal sobre o principal inicial (Ex: 500 + 15% = 575)
                     saldo_inicial = valor_emp * (1 + (taxa_normal / 100))
                     st.session_state.contratos.append({
                         "ID": novo_id_c,
@@ -174,7 +177,6 @@ elif menu == "Registrar Pagamento":
                     
                     juros_atraso_total = 0.0
                     if dias_atraso_input > 0:
-                        # Juros diários proporcionais (taxa mensal / 30 dias)
                         taxa_atraso_diaria = (taxa_atraso_mensal / 100) / 30.0
                         juros_atraso_total = saldo_devedor_atual * taxa_atraso_diaria * dias_atraso_input
                         saldo_devedor_atual += juros_atraso_total
@@ -244,5 +246,3 @@ elif menu == "Auditoria & Relatórios":
         st.download_button("Baixar Relatório de Contratos (CSV para Auditoria)", csv_data, "relatorio_auditoria.csv", "text/csv")
     else:
         st.info("Nenhum pagamento registrado.")
-  
-    
