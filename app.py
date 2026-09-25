@@ -48,7 +48,7 @@ if menu == "Dashboard":
         st.dataframe(df_c, use_container_width=True)
 
 # ----------------------------------------------------
-# 2. NOVO CLIENTE (Com a exclusão habilitada ao lado)
+# 2. NOVO CLIENTE (Com exclusão habilitada ao lado)
 # ----------------------------------------------------
 elif menu == "Novo Cliente":
     st.title("👤 Cadastro e Gestão de Clientes")
@@ -99,7 +99,7 @@ elif menu == "Novo Cliente":
         st.info("Nenhum cliente na base.")
 
 # ----------------------------------------------------
-# 3. NOVO CONTRATO (Sua versão exata original)
+# 3. NOVO CONTRATO
 # ----------------------------------------------------
 elif menu == "Novo Contrato":
     st.title("📄 Novo Contrato de Empréstimo")
@@ -120,7 +120,7 @@ elif menu == "Novo Contrato":
             if submit_c:
                 if valor_emp > 0:
                     novo_id_c = len(st.session_state.contratos) + 1
-                    # Cálculo proporcional inicial idêntico ao seu
+                    # Aplicação correta da taxa normal sobre o principal inicial (Ex: 500 + 15% = 575)
                     saldo_inicial = valor_emp * (1 + (taxa_normal / 100))
                     st.session_state.contratos.append({
                         "ID": novo_id_c,
@@ -145,7 +145,7 @@ elif menu == "Novo Contrato":
             st.dataframe(pd.DataFrame(st.session_state.contratos), use_container_width=True)
 
 # ----------------------------------------------------
-# 4. REGISTRAR PAGAMENTO (Sua versão exata original)
+# 4. REGISTRAR PAGAMENTO (Com recálculo de juros e atraso diário)
 # ----------------------------------------------------
 elif menu == "Registrar Pagamento":
     st.title("💰 Registrar Pagamento / Amortização")
@@ -160,19 +160,39 @@ elif menu == "Registrar Pagamento":
             contrato_obj = contratos_opcoes[sel_str]
             
             valor_pag = st.number_input("Valor Pago pelo Cliente (R$)", min_value=0.0, format="%.2f")
+            dias_atraso_input = st.number_input("Dias de Atraso (se houver)", min_value=0, value=0, step=1)
             data_pag = st.text_input("Data do Pagamento (Formato: DD/MM/AAAA)", value="25/09/2026")
             
             submit_p = st.form_submit_button("Confirmar Amortização e Avançar Parcela")
             if submit_p:
                 if valor_pag > 0:
                     novo_id_p = len(st.session_state.pagamentos) + 1
-                    novo_saldo = max(0.0, contrato_obj['Saldo_Atual'] - valor_pag)
+                    
+                    # 1. Saldo atual antes do pagamento, acrescido de juros diários de atraso se houver
+                    saldo_devedor_atual = contrato_obj['Saldo_Atual']
+                    taxa_atraso_mensal = contrato_obj['Taxa_Atraso']
+                    
+                    juros_atraso_total = 0.0
+                    if dias_atraso_input > 0:
+                        # Juros diários proporcionais (taxa mensal / 30 dias)
+                        taxa_atraso_diaria = (taxa_atraso_mensal / 100) / 30.0
+                        juros_atraso_total = saldo_devedor_atual * taxa_atraso_diaria * dias_atraso_input
+                        saldo_devedor_atual += juros_atraso_total
+                    
+                    # 2. Subtrai o valor pago pelo cliente
+                    restante_apos_pagamento = max(0.0, saldo_devedor_atual - valor_pag)
+                    
+                    # 3. Aplica a taxa normal (% ao mês) sobre o saldo restante (Ex: 375 + 15% = 431.25)
+                    taxa_normal_mensal = contrato_obj['Taxa_Normal']
+                    novo_saldo = restante_apos_pagamento * (1 + (taxa_normal_mensal / 100))
                     
                     # Atualiza o contrato na sessão
                     for c in st.session_state.contratos:
                         if c['ID'] == contrato_obj['ID']:
                             c['Parcela_Atual'] = min(c['Total_Parcelas'], c['Parcela_Atual'] + 1)
                             c['Saldo_Atual'] = novo_saldo
+                            c['Dias_Atraso'] = dias_atraso_input
+                            c['Status'] = "Em atraso" if dias_atraso_input > 0 else "Em dia"
                             c['Parcelas'] = f"{c['Parcela_Atual']} de {c['Total_Parcelas']}"
                     
                     st.session_state.pagamentos.append({
@@ -180,10 +200,12 @@ elif menu == "Registrar Pagamento":
                         "Contrato_ID": contrato_obj['ID'],
                         "Cliente": contrato_obj['Cliente'],
                         "Valor_Pago": valor_pag,
+                        "Dias_Atraso": dias_atraso_input,
+                        "Juros_Atraso": juros_atraso_total,
                         "Data_Pagamento": data_pag,
                         "Novo_Saldo": novo_saldo
                     })
-                    st.success(f"Pagamento registrado com sucesso! Novo saldo: R$ {novo_saldo:,.2f}")
+                    st.success(f"Pagamento registrado com sucesso! Restante após abatimento com juros normais: R$ {novo_saldo:,.2f}")
                     st.rerun()
                 else:
                     st.error("O valor do pagamento deve ser maior que zero.")
@@ -202,7 +224,7 @@ elif menu == "Registrar Pagamento":
                 st.rerun()
 
 # ----------------------------------------------------
-# 5. AUDITORIA & RELATÓRIOS (Sua versão exata original)
+# 5. AUDITORIA & RELATÓRIOS
 # ----------------------------------------------------
 elif menu == "Auditoria & Relatórios":
     st.title("📋 Relatório de Auditoria para Conferência")
@@ -222,3 +244,5 @@ elif menu == "Auditoria & Relatórios":
         st.download_button("Baixar Relatório de Contratos (CSV para Auditoria)", csv_data, "relatorio_auditoria.csv", "text/csv")
     else:
         st.info("Nenhum pagamento registrado.")
+  
+    
