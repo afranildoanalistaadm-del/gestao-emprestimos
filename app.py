@@ -48,7 +48,7 @@ if menu == "Dashboard":
         st.dataframe(df_c, use_container_width=True)
 
 # ----------------------------------------------------
-# 2. NOVO CLIENTE (Com gestão e exclusão flexível)
+# 2. NOVO CLIENTE (Exclusão limpa e sincronizada)
 # ----------------------------------------------------
 elif menu == "Novo Cliente":
     st.title("👤 Cadastro e Gestão de Clientes")
@@ -84,14 +84,20 @@ elif menu == "Novo Cliente":
             contratos_vinculados = [c for c in st.session_state.contratos if c['Cliente'] == obj_del['Nome']]
             
             if contratos_vinculados:
-                st.warning(f"Atenção: Este cliente possui {len(contratos_vinculados)} contrato(s) ativo(s).")
+                st.warning(f"Atenção: Este cliente possui {len(contratos_vinculados)} contrato(s) e histórico vinculado(s).")
             
-            if st.button("Excluir Cliente (e contratos vinculados se houver)", type="primary"):
+            if st.button("Excluir Cliente e Registros Vinculados", type="primary"):
+                # IDs dos contratos deste cliente
+                ids_contratos_remover = [c['ID'] for c in contratos_vinculados]
+                
                 # Remove o cliente
                 st.session_state.clientes = [c for c in st.session_state.clientes if c['ID'] != obj_del['ID']]
-                # Remove também os contratos vinculados para evitar inconsistência de ID/Nome
+                # Remove os contratos do cliente
                 st.session_state.contratos = [c for c in st.session_state.contratos if c['Cliente'] != obj_del['Nome']]
-                st.success("Cliente e registros vinculados excluídos com sucesso!")
+                # Remove os pagamentos associados a esses contratos
+                st.session_state.pagamentos = [p for p in st.session_state.pagamentos if p['Contrato_ID'] not in ids_contratos_remover]
+                
+                st.success("Cliente e todos os registros associados excluídos com sucesso!")
                 st.rerun()
 
     st.markdown("---")
@@ -148,7 +154,7 @@ elif menu == "Novo Contrato":
             st.dataframe(pd.DataFrame(st.session_state.contratos), use_container_width=True)
 
 # ----------------------------------------------------
-# 4. REGISTRAR PAGAMENTO (Com recálculo de juros e atraso diário)
+# 4. REGISTRAR PAGAMENTO
 # ----------------------------------------------------
 elif menu == "Registrar Pagamento":
     st.title("💰 Registrar Pagamento / Amortização")
