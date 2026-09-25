@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 
-st.set_page_config(page_title="Gestão de Empréstimos", page_icon="📊", layout="wide")
+st.set_page_config(page_title="Sistema de Gestão de Empréstimos", page_icon="📊", layout="wide")
 
 if 'clientes' not in st.session_state:
     st.session_state.clientes = []
@@ -35,11 +35,11 @@ if menu == "Dashboard":
     if not st.session_state.contratos:
         st.info("Nenhum contrato cadastrado ainda. Vá em 'Novo Contrato' para começar.")
     else:
-        total_emprestado = sum(c['Valor'] for c in st.session_state.contratos)
+        total_emprestado = sum(c['Total com Juros'] for c in st.session_state.contratos)
         total_pago = sum(p['Valor'] for p in st.session_state.pagamentos)
         
         col1, col2, col3 = st.columns(3)
-        col1.metric("Total Emprestado", f"R$ {total_emprestado:,.2f}")
+        col1.metric("Total da Carteira (com Juros)", f"R$ {total_emprestado:,.2f}")
         col2.metric("Total Recebido", f"R$ {total_pago:,.2f}")
         col3.metric("Contratos Ativos", len(st.session_state.contratos))
         
@@ -48,7 +48,7 @@ if menu == "Dashboard":
         st.dataframe(df_c, use_container_width=True)
 
 # ----------------------------------------------------
-# 2. NOVO CLIENTE (Com opção de Edição e Exclusão Segura/Forçada)
+# 2. NOVO CLIENTE (Com Editar e Excluir)
 # ----------------------------------------------------
 elif menu == "Novo Cliente":
     st.title("👤 Gestão de Clientes")
@@ -106,7 +106,7 @@ elif menu == "Novo Cliente":
             
             if contratos_vinculados:
                 st.warning(f"Não é possível excluir o cliente '{obj_del['Nome']}' pois existem {len(contratos_vinculados)} contratos vinculados a ele.")
-                for_car = st.checkbox("Forçar exclusão (Isso também removerá os contratos vinculados)")
+                for_car = st.checkbox("Forçar exclusão (Remove também os contratos vinculados)")
                 if st.button("Excluir Cliente e Contratos Vinculados", type="primary"):
                     if for_car:
                         st.session_state.contratos = [c for c in st.session_state.contratos if c['Cliente'] != obj_del['Nome']]
@@ -129,7 +129,7 @@ elif menu == "Novo Cliente":
         st.info("Nenhum cliente na base.")
 
 # ----------------------------------------------------
-# 3. NOVO CONTRATO
+# 3. NOVO CONTRATO (Com Parcelamento, Juros e Datas BR)
 # ----------------------------------------------------
 elif menu == "Novo Contrato":
     st.title("📄 Cadastro de Contrato de Empréstimo")
@@ -141,21 +141,29 @@ elif menu == "Novo Contrato":
         with st.form("form_contrato"):
             cli = st.selectbox("Cliente", clientes_lista)
             valor_emp = st.number_input("Valor do Empréstimo (R$)", min_value=0.0, format="%.2f")
-            taxa_juros = st.number_input("Taxa de Juros (%)", min_value=0.0, format="%.2f")
+            taxa_juros = st.number_input("Taxa de Juros Total (%)", min_value=0.0, format="%.2f")
+            qtd_parcelas = st.number_input("Quantidade de Parcelas", min_value=1, step=1, value=1)
             data_emp = st.date_input("Data do Contrato", value=datetime.today())
             
             submit_c = st.form_submit_button("Criar Contrato")
             if submit_c:
                 if valor_emp > 0:
+                    valor_com_juros = valor_emp * (1 + (taxa_juros / 100.0))
+                    valor_parcela = valor_com_juros / qtd_parcelas
+                    data_br = data_emp.strftime("%d/%m/%Y") # Formato brasileiro DD/MM/AAAA
+                    
                     novo_id_c = len(st.session_state.contratos) + 1
                     st.session_state.contratos.append({
                         "ID": novo_id_c,
                         "Cliente": cli,
-                        "Valor": valor_emp,
+                        "Valor Principal": valor_emp,
                         "Taxa (%)": taxa_juros,
-                        "Data": str(data_emp)
+                        "Total com Juros": valor_com_juros,
+                        "Qtd Parcelas": qtd_parcelas,
+                        "Valor Parcela": valor_parcela,
+                        "Data": data_br
                     })
-                    st.success(f"Contrato #{novo_id_c} criado para {cli} com taxa de {taxa_juros}%!")
+                    st.success(f"Contrato #{novo_id_c} criado para {cli}! Total com juros: R$ {valor_com_juros:,.2f} ({qtd_parcelas}x de R$ {valor_parcela:,.2f})")
                 else:
                     st.error("O valor do empréstimo deve ser maior que zero.")
                     
@@ -181,10 +189,11 @@ elif menu == "Registrar Pagamento":
             submit_p = st.form_submit_button("Registrar Pagamento")
             if submit_p:
                 if valor_pag > 0:
+                    data_pag_br = data_pag.strftime("%d/%m/%Y")
                     st.session_state.pagamentos.append({
                         "ID Contrato": id_contrato,
                         "Valor": valor_pag,
-                        "Data": str(data_pag)
+                        "Data": data_pag_br
                     })
                     st.success(f"Pagamento de R$ {valor_pag:,.2f} registrado no Contrato #{id_contrato}!")
                 else:
