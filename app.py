@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 
-st.set_page_config(page_title="Sistema de Gestão de Empréstimos", page_icon="📊", layout="wide")
+st.set_page_config(page_title="Gestão de Empréstimos", page_icon="📊", layout="wide")
 
 if 'clientes' not in st.session_state:
     st.session_state.clientes = []
@@ -48,7 +48,7 @@ if menu == "Dashboard":
         st.dataframe(df_c, use_container_width=True)
 
 # ----------------------------------------------------
-# 2. NOVO CLIENTE (Estrutura original com Cadastro e Exclusão lado a lado)
+# 2. NOVO CLIENTE (Com a opção de exclusão ao lado)
 # ----------------------------------------------------
 elif menu == "Novo Cliente":
     st.title("👤 Cadastro e Gestão de Clientes")
@@ -99,7 +99,7 @@ elif menu == "Novo Cliente":
         st.info("Nenhum cliente na base.")
 
 # ----------------------------------------------------
-# 3. NOVO CONTRATO (Original)
+# 3. NOVO CONTRATO (ESTRUTURA ORIGINAL EXATA)
 # ----------------------------------------------------
 elif menu == "Novo Contrato":
     st.title("📄 Cadastro de Contrato de Empréstimo")
@@ -184,4 +184,3 @@ elif menu == "Auditoria & Relatórios":
     st.write(f"Total de Clientes cadastrados: {len(st.session_state.clientes)}")
     st.write(f"Total de Contratos criados: {len(st.session_state.contratos)}")
     st.write(f"Total de Pagamentos registrados: {len(st.session_state.pagamentos)}")
-      
